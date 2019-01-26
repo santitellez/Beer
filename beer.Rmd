@@ -31,6 +31,7 @@ breweries <- read.csv("craft-cans/breweries.csv", stringsAsFactors = FALSE)
 
 beers_and_brewery <- merge(beers, breweries, by.x = "brewery_id", by.y = "X")
 colnames(beers_and_brewery)[c(6, 9)] <- c("name_beer", "name_brewery")
+beers_and_brewery$state <- gsub(" ", "", beers_and_brewery$state)
 ```
 
 #EDA
@@ -67,12 +68,46 @@ state_chart <- ggplot(data = beers_and_brewery) +
   ylab("Frequency") +
   theme(plot.title = element_text(hjust = 0.5))
 
-grid.arrange(abv_hist, ibu_hist, nrow = 1)
-oz_hist
+grid.arrange(abv_hist, ibu_hist, oz_hist, nrow = 1)
 state_chart
 ```
 
-#Label Creation
+```{r, echo=FALSE}
+abv_ibu <- ggplot(data = beers_and_brewery) +
+  geom_point(aes(abv, ibu), na.rm = TRUE) +
+  ggtitle("ABV vs. IBU") +
+  xlab("ABV") +
+  ylab("IBU") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+abv_oz <- ggplot(data = beers_and_brewery) +
+  geom_boxplot(aes(as.factor(ounces), abv), na.rm = TRUE) +
+  ggtitle("ABV vs. Ounces") +
+  xlab("Ounces") +
+  ylab("ABV") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+ibu_oz <- ggplot(data = beers_and_brewery) +
+  geom_boxplot(aes(as.factor(ounces), ibu), na.rm = TRUE) +
+  ggtitle("IBU vs. Ounces") +
+  xlab("Ounces") +
+  ylab("IBU") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+#Label Creation - Reducing Factor Levels in Style
+
+We created 8 main categories for beer type:
+
+* Ale
+* India Pale Ale
+* Lager
+* Kölsch
+* Stout
+* Wheat
+* Fruit
+* Other
+
 ```{r, echo=tfecho, message=FALSE}
 beers_and_brewery$type <- NA
 beers_and_brewery$type[which(grepl("Ale", beers_and_brewery$style))] <- "ale"
@@ -81,17 +116,28 @@ beers_and_brewery$type[which(grepl("India", beers_and_brewery$style))] <- "ipa"
 beers_and_brewery$type[which(grepl("Lager", beers_and_brewery$style))] <- "lager"
 beers_and_brewery$type[which(grepl("Stout", beers_and_brewery$style))] <- "stout"
 beers_and_brewery$type[which(grepl("Porter", beers_and_brewery$style))] <- "stout"
-beers_and_brewery$type[which(grepl("Malt", beers_and_brewery$style))] <- "malt"
-beers_and_brewery$type[which(grepl("Kölsch", beers_and_brewery$style))] <- "lager"
+beers_and_brewery$type[which(grepl("Malt", beers_and_brewery$style))] <- "other"
+beers_and_brewery$type[which(grepl("Kölsch", beers_and_brewery$style))] <- "kolsch"
 beers_and_brewery$type[which(grepl("Pilsner", beers_and_brewery$style))] <- "lager"
 beers_and_brewery$type[which(grepl("Pilsener", beers_and_brewery$style))] <- "lager"
-beers_and_brewery$type[which(grepl("Fruit", beers_and_brewery$style))] <- "other"
-beers_and_brewery$type[which(grepl("Cider", beers_and_brewery$style))] <- "cider"
-beers_and_brewery$type[which(grepl("Witbier", beers_and_brewery$style))] <- "other"
-beers_and_brewery$type[which(grepl("Rye", beers_and_brewery$style))] <- "malt"
-beers_and_brewery$type[which(grepl("Hefeweizen", beers_and_brewery$style))] <- "malt"
+beers_and_brewery$type[which(grepl("Fruit", beers_and_brewery$style))] <- "fruit"
+beers_and_brewery$type[which(grepl("Cider", beers_and_brewery$style))] <- "other"
+beers_and_brewery$type[which(grepl("Witbier", beers_and_brewery$style))] <- "wheat"
+beers_and_brewery$type[which(grepl("Rye", beers_and_brewery$style))] <- "other"
+beers_and_brewery$type[which(grepl("Hefeweizen", beers_and_brewery$style))] <- "wheat"
 beers_and_brewery$type[which(is.na(beers_and_brewery$type))] <- "other"
 
+table(beers_and_brewery$type)
+```
+
+We also grouped the states into 4 main regions:
+
+* West
+* Northeast
+* South
+* North Central
+
+```{r, echo=tfecho}
 state_index <- as.data.frame(cbind(as.character(state.abb), 
                                    tolower(as.character(state.name)), 
                                    as.character(state.region)))
@@ -99,9 +145,55 @@ colnames(state_index) <- c("state", "region", "area")
 state_index$state <- as.character(state_index$state)
 state_index$region <- as.character(state_index$region)
 state_index$area <- as.character(state_index$area)
-beers_and_brewery$state <- gsub(" ", "", beers_and_brewery$state)
 beers_and_brewery <- merge(beers_and_brewery, state_index, by = "state")
 ```
+
+Count of beers by region:
+```{r, echo=FALSE}
+table(beers_and_brewery$area)
+```
+
+Count of breweries by region:
+```{r, echo=FALSe}
+table(unique(beers_and_brewery[,c(10, 18)])$area)
+```
+
+Is there a relationship between brewery location and beer types?
+
+* We will conduct a chi-squared test for independence
+
+```{r, echo=tfecho}
+regions <- as.factor(beers_and_brewery$area)
+beer_type <- as.factor(beers_and_brewery$type)
+
+chisq.test(regions, beer_type)
+```
+
+The result is a very low p-value, so we can conclude that there is dependence between regions and beer types. 
+
+To analyze the relationship between characteristics and region, let's map the beer alochol content and IBU by region.
+
+```{r, echo=tfecho, warning=FALSE, message=FALSE}
+states <- map_data("state")
+states <- left_join(states, state_index)
+states <- left_join(states, beers_and_brewery)
+
+abv_region <- aggregate(na.omit(beers_and_brewery[,c(4)]), 
+          by = list(region = beers_and_brewery$area[which(!is.na(beers_and_brewery$abv))]), 
+          FUN = mean, na.action = na.pass)
+colnames(abv_region)[2] <- c("mean_abv")
+
+states <- left_join(states, abv_region, by = "region")
+
+states_abv <- ggplot(data = states) + 
+  geom_polygon(aes(x = long, y = lat, fill = mean_abv, group = group), color = "white") + 
+  coord_fixed(1.275) +
+  guides(fill = FALSE) +
+  ggtitle("Map of Regions") +
+  theme(plot.title = element_text(hjust = 0.5))
+  
+```
+
 
 #KNN
 ```{r, echo=tfecho}
