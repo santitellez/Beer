@@ -1,0 +1,10 @@
+---
+title: "Craft Beer"
+author: "Santiago Tellez"
+date: "1/25/2019"
+output: pdf_document
+---
+
+```{r, echo=FALSE}
+beers <- read.csv("")
+```
