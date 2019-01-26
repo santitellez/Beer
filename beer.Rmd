@@ -18,7 +18,9 @@ pacman::p_load('stringr',
                'mapdata',
                'dplyr',
                'gridExtra',
-               'caret')
+               'caret',
+               'zoo',
+               'forecast')
 tfecho <- FALSE
 ```
 
@@ -93,6 +95,10 @@ ibu_oz <- ggplot(data = beers_and_brewery) +
   xlab("Ounces") +
   ylab("IBU") +
   theme(plot.title = element_text(hjust = 0.5))
+
+abv_ibu
+abv_oz
+ibu_oz
 ```
 
 #Label Creation - Reducing Factor Levels in Style
@@ -155,7 +161,7 @@ table(beers_and_brewery$area)
 
 Count of breweries by region:
 ```{r, echo=FALSe}
-table(unique(beers_and_brewery[,c(10, 18)])$area)
+table(unique(beers_and_brewery[,c(10, 14)])$area)
 ```
 
 Is there a relationship between brewery location and beer types?
@@ -181,71 +187,107 @@ states <- left_join(states, beers_and_brewery)
 abv_region <- aggregate(na.omit(beers_and_brewery[,c(4)]), 
           by = list(region = beers_and_brewery$area[which(!is.na(beers_and_brewery$abv))]), 
           FUN = mean, na.action = na.pass)
-colnames(abv_region)[2] <- c("mean_abv")
+colnames(abv_region) <- c("area", "mean_abv")
 
-states <- left_join(states, abv_region, by = "region")
+states <- left_join(states, abv_region, by = "area", all = TRUE)
 
 states_abv <- ggplot(data = states) + 
   geom_polygon(aes(x = long, y = lat, fill = mean_abv, group = group), color = "white") + 
   coord_fixed(1.275) +
-  guides(fill = FALSE) +
   ggtitle("Map of Regions") +
   theme(plot.title = element_text(hjust = 0.5))
   
 ```
 
-
-#KNN
+#Random Forest
 ```{r, echo=tfecho}
-beers_and_brewery$ibu[which(is.na(beers_and_brewery$ibu))] <- 
-  beers_and_brewery$abv[which(is.na(beers_and_brewery$ibu))]
+random_indices <- sample(seq(1, nrow(beers_and_brewery)), nrow(beers_and_brewery))
+bb_train <- beers_and_brewery[random_indices[1:1800], ]
+bb_test <- beers_and_brewery[random_indices[1801:nrow(beers_and_brewery)], ]
 
-beers_and_brewery <- beers_and_brewery[which(!is.na(beers_and_brewery$abv)), ]
+control <- trainControl(method = "cv", number = 3)
 
-control <- trainControl(method = "cv", number = 10)
-
-rf <- train(type ~ abv + ibu + area + ounces, data = beers_and_brewery, 
+type_rf <- train(type ~ abv + ibu + area + ounces, data = na.omit(bb_train), 
                  trControl = control, method = "rf")
 
-table(predict(rf, beers_and_brewery))
-table(beers_and_brewery$type)
+table(predict(type_rf, na.omit(bb_test)))
+table(na.omit(bb_test)$type)
 
-type_knn <- knn3(x = beers_and_brewery[c(3, 4)], 
-                 y = as.factor(beers_and_brewery$type), 
-                 formula = type ~ abv + ibu + interaction)
+mean(predict(type_rf, na.omit(bb_test)) == na.omit(bb_test)$type)
 ```
 
-#ABV and IBU by Type of Beer
+#Using Names of Beers
 ```{r, echo=tfecho}
-type_by_abv_and_ibu <- ggplot(data = beers_and_brewery) +
-  geom_point(aes(abv, ibu, color = type))
+beers_and_brewery$name_beer <- tolower(beers_and_brewery$name_beer)
+sentiments_adj <- na.omit(unique(sentiments[, c(1, 2)]))
+
+num_of_words <- c()
+sentiment_matrix <- as.data.frame(matrix(data = 0, nrow = nrow(beers_and_brewery), ncol = 14))
+colnames(sentiment_matrix) <- c("anger", "anticipation", "constraining", "disgust", 
+                                "fear", "joy", "litigious", "negative", "neutral", 
+                                "positive", "sadness", "surprise", "trust", "uncertainty")
+index <- 1
+for (name in str_split(beers_and_brewery$name_beer, " ")) {
+  num_of_words <- c(num_of_words, length(name))
+  if(any(name %in% sentiments_adj$word)){
+    for (sent_name in name) {
+      if(sent_name %in% sentiments_adj$word){
+        for (sents in sentiments_adj$sentiment[which(sentiments_adj$word == sent_name)]) {
+          sentiment_matrix[index, which(colnames(sentiment_matrix) == sents)] <-
+          sentiment_matrix[index, which(colnames(sentiment_matrix) == sents)] + 1
+        }
+      }
+    }
+  }
+  index <- index + 1
+}
+
+sentiment_matrix <- as.data.frame(sapply(sentiment_matrix, FUN = as.factor))
+
+beers_and_brewery$num_of_words <- num_of_words
+beers_and_brewery <- cbind(beers_and_brewery, sentiment_matrix)
 ```
 
-#Beer Stats by Brewery
-```{r, echo=tfecho, warning=FALSE, message=FALSE}
-avg_brewery <- aggregate(beers_and_brewery, list(Brewery = beers_and_brewery$name.y), FUN = mean, na.action = na.omit)
-avg_state <- aggregate(beers_and_brewery, list(Brewery = beers_and_brewery$state), FUN = mean, na.action = na.omit)
+#Random Forest
+```{r, echo=tfecho}
+beers_and_brewery <- beers_and_brewery[, c(4, 5, 9, 12, 14, 15, 16, 17, 18, 19, 20, 
+                                           21, 22, 23, 25, 26, 27, 28, 29)]
+random_indices <- sample(seq(1, nrow(beers_and_brewery)), nrow(beers_and_brewery))
+bb_train <- beers_and_brewery[random_indices[1:1800], ]
+bb_test <- beers_and_brewery[random_indices[1801:nrow(beers_and_brewery)], ]
+
+control <- trainControl(method = "cv", number = 3)
+
+type_rf <- train(type ~ ., data = na.omit(bb_train), 
+                 trControl = control, method = "rf")
+
+table(predict(type_rf, na.omit(bb_test)))
+table(na.omit(bb_test)$type)
+
+mean(predict(type_rf, na.omit(bb_test)) == na.omit(bb_test)$type)
 ```
 
-#Maps
-```{r, echo=tfecho, message=FALSE, warning=FALSE}
-state_index <- as.data.frame(cbind(as.character(state.abb), 
-                                   tolower(as.character(state.name)), 
-                                   as.character(state.region)))
-colnames(state_index) <- c("state", "region", "area")
-state_index$state <- as.character(state_index$state)
-state_index$region <- as.character(state_index$region)
+#Correspondance Analysis - Random Forest
+```{r, echo=tfecho}
+ca_sentiments <- mca(sentiment_matrix)
+ca_matrices <- cbind(as.data.frame(ca_sentiments$fs), 
+                     as.data.frame(ca_sentiments$rs))
+colnames(ca_matrices) <- c("fs1", "fs2", "rs1", "rs2")
 
-states <- map_data("state")
-states <- left_join(states, state_index)
-beers_and_brewery$state <- gsub(" ", "", beers_and_brewery$state)
-states <- left_join(states, beers_and_brewery)
+beers_and_brewery <- cbind(beers_and_brewery, ca_matrices)
 
-states_abv <- ggplot(data = states) + 
-  geom_polygon(aes(x = long, y = lat, fill = area, group = group), color = "white") + 
-  coord_fixed(1.275) +
-  guides(fill = FALSE)
+random_indices <- sample(seq(1, nrow(beers_and_brewery)), nrow(beers_and_brewery))
+bb_train <- beers_and_brewery[random_indices[1:1800], ]
+bb_test <- beers_and_brewery[random_indices[1801:nrow(beers_and_brewery)], ]
+
+control <- trainControl(method = "cv", number = 3)
+
+type_rf <- train(type ~ ., data = na.omit(bb_train), 
+                 trControl = control, method = "rf", 
+                 tuneGrid = data.frame(mtry = seq(2, 30, 2)))
+
+table(predict(type_rf, na.omit(bb_test)))
+table(na.omit(bb_test)$type)
+
+mean(predict(type_rf, na.omit(bb_test)) == na.omit(bb_test)$type)
 ```
-
-
-
