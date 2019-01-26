@@ -29,9 +29,40 @@ breweries <- read.csv("craft-cans/breweries.csv", stringsAsFactors = FALSE)
 beers_and_brewery <- merge(beers, breweries, by.x = "brewery_id", by.y = "X")
 ```
 
+#Feature Creation
+```{r, echo=FALSE}
+beers_and_brewery$ratio <- scale(beers_and_brewery$ibu) / scale(beers_and_brewery$abv)
+```
+
+#EDA
+```{r, echo=FALSE}
+abv_hist <- 
+```
+
 #Label Creation
 ```{r, echo=FALSE}
+beers_and_brewery$type <- NA
+beers_and_brewery$type[which(grepl("Ale", beers_and_brewery$style))] <- "ale"
+beers_and_brewery$type[which(grepl("IPA", beers_and_brewery$style))] <- "ale"
+beers_and_brewery$type[which(grepl("Lager", beers_and_brewery$style))] <- "lager"
+beers_and_brewery$type[which(grepl("Stout", beers_and_brewery$style))] <- "stout"
+beers_and_brewery$type[which(grepl("Porter", beers_and_brewery$style))] <- "stout"
+beers_and_brewery$type[which(grepl("Malt", beers_and_brewery$style))] <- "malt"
+beers_and_brewery$type[which(grepl("Kölsch", beers_and_brewery$style))] <- "lager"
+beers_and_brewery$type[which(grepl("Pilsner", beers_and_brewery$style))] <- "lager"
+beers_and_brewery$type[which(grepl("Pilsener", beers_and_brewery$style))] <- "lager"
+beers_and_brewery$type[which(grepl("Fruit", beers_and_brewery$style))] <- "other"
+beers_and_brewery$type[which(grepl("Cider", beers_and_brewery$style))] <- "cider"
+beers_and_brewery$type[which(grepl("Witbier", beers_and_brewery$style))] <- "other"
+beers_and_brewery$type[which(grepl("Rye", beers_and_brewery$style))] <- "malt"
+beers_and_brewery$type[which(grepl("Hefeweizen", beers_and_brewery$style))] <- "malt"
+beers_and_brewery$type[which(is.na(beers_and_brewery$type))] <- "other"
+```
 
+#ABV and IBU by Type of Beer
+```{r, echo=FALSE}
+type_by_abv_and_ibu <- ggplot(data = beers_and_brewery) +
+  geom_point(aes(abv, ibu, color = type))
 ```
 
 #Beer Stats by Brewery
