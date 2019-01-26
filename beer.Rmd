@@ -5,6 +5,32 @@ date: "1/25/2019"
 output: pdf_document
 ---
 
-```{r, echo=FALSE}
-beers <- read.csv("")
+#Loading Packages
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load('stringr',
+               'knitr',
+               'ggplot2',
+               'astsa',
+               'lubridate')
 ```
+
+#Loading Data
+```{r, echo=FALSE}
+opts_knit$set(root.dir = normalizePath("../"))
+
+beers <- read.csv("craft-cans/beers.csv", stringsAsFactors = FALSE)
+breweries <- read.csv("craft-cans/breweries.csv", stringsAsFactors = FALSE)
+
+beers_and_brewery <- merge(beers, breweries, by.x = "brewery_id", by.y = "X")
+```
+
+#Beer Stats by Brewery
+```{r, echo=FALSE}
+aggregate(beers, by = c(name), FUN = mean)
+```
+
+
+
+
+
