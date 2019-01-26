@@ -202,6 +202,8 @@ states_abv <- ggplot(data = states) +
 
 #Random Forest
 ```{r, echo=tfecho}
+set.seed(123)
+
 random_indices <- sample(seq(1, nrow(beers_and_brewery)), nrow(beers_and_brewery))
 bb_train <- beers_and_brewery[random_indices[1:1800], ]
 bb_test <- beers_and_brewery[random_indices[1801:nrow(beers_and_brewery)], ]
@@ -254,6 +256,8 @@ beers_and_brewery <- cbind(beers_and_brewery, sentiment_matrix)
 
 #Random Forest
 ```{r, echo=tfecho}
+set.seed(12345)
+
 beers_and_brewery <- beers_and_brewery[, c(4, 5, 9, 12, 14, 15, 16, 17, 18, 19, 20, 
                                            21, 22, 23, 25, 26, 27, 28, 29)]
 random_indices <- sample(seq(1, nrow(beers_and_brewery)), nrow(beers_and_brewery))
@@ -271,7 +275,7 @@ table(na.omit(bb_test)$type)
 mean(predict(type_rf, na.omit(bb_test)) == na.omit(bb_test)$type)
 ```
 
-Including the sentiment of the names of the beers improves the accuracy of the model by about 5%. 
+Including the sentiment of the names of the beers improves the accuracy of the model by about 5%. Next I will see if a correspondance analysis on the sentiments of each beer name adds predictive power to the model.
 
 #Correspondance Analysis - Random Forest
 ```{r, echo=tfecho}
@@ -297,3 +301,5 @@ table(na.omit(bb_test)$type)
 
 mean(predict(type_rf, na.omit(bb_test)) == na.omit(bb_test)$type)
 ```
+
+The accuracy on the test set goes to 65%, an improvement on both models for classifying beer type.
