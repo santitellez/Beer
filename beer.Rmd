@@ -5,8 +5,8 @@ date: "1/25/2019"
 output: pdf_document
 ---
 
-#Loading Packages
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Loading Packages
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load('stringr',
                'knitr',
@@ -16,34 +16,68 @@ pacman::p_load('stringr',
                'ggmap',
                'maps',
                'mapdata',
-               'dplyr')
+               'dplyr',
+               'gridExtra',
+               'caret')
+tfecho <- FALSE
 ```
 
 #Loading Data
-```{r, echo=FALSE}
+```{r, echo=tfecho}
 opts_knit$set(root.dir = normalizePath("../"))
 
 beers <- read.csv("craft-cans/beers.csv", stringsAsFactors = FALSE)
 breweries <- read.csv("craft-cans/breweries.csv", stringsAsFactors = FALSE)
 
 beers_and_brewery <- merge(beers, breweries, by.x = "brewery_id", by.y = "X")
-```
-
-#Feature Creation
-```{r, echo=FALSE}
-beers_and_brewery$ratio <- scale(beers_and_brewery$ibu) / scale(beers_and_brewery$abv)
+colnames(beers_and_brewery)[c(6, 9)] <- c("name_beer", "name_brewery")
 ```
 
 #EDA
-```{r, echo=FALSE}
-abv_hist <- 
+```{r, echo=tfecho}
+abv_hist <- ggplot(data = beers_and_brewery[which(!is.na(beers_and_brewery$abv)), ]) +
+  geom_histogram(aes(abv), fill = "dark green", binwidth = .003) + 
+  ggtitle("ABV Histogram") +
+  guides(fill = FALSE) +
+  xlab("ABV") +
+  ylab("Frequency") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+ibu_hist <- ggplot(data = beers_and_brewery[which(!is.na(beers_and_brewery$ibu)), ]) +
+  geom_histogram(aes(ibu), fill = "navy", binwidth = 5) + 
+  ggtitle("IBU Histogram") +
+  guides(fill = FALSE) +
+  xlab("IBU") +
+  ylab("Frequency") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+oz_hist <- ggplot(data = beers_and_brewery[which(!is.na(beers_and_brewery$ounces)), ]) +
+  geom_histogram(aes(ounces), fill = "red", binwidth = 2) + 
+  ggtitle("Ounces Histogram") +
+  guides(fill = FALSE) +
+  xlab("Ounces") +
+  ylab("Frequency") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+state_chart <- ggplot(data = beers_and_brewery) +
+  geom_bar(aes(state), stat = "count") + 
+  ggtitle("State Count") +
+  guides(fill = FALSE) +
+  xlab("State") +
+  ylab("Frequency") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+grid.arrange(abv_hist, ibu_hist, nrow = 1)
+oz_hist
+state_chart
 ```
 
 #Label Creation
-```{r, echo=FALSE}
+```{r, echo=tfecho, message=FALSE}
 beers_and_brewery$type <- NA
 beers_and_brewery$type[which(grepl("Ale", beers_and_brewery$style))] <- "ale"
-beers_and_brewery$type[which(grepl("IPA", beers_and_brewery$style))] <- "ale"
+beers_and_brewery$type[which(grepl("IPA", beers_and_brewery$style))] <- "ipa"
+beers_and_brewery$type[which(grepl("India", beers_and_brewery$style))] <- "ipa"
 beers_and_brewery$type[which(grepl("Lager", beers_and_brewery$style))] <- "lager"
 beers_and_brewery$type[which(grepl("Stout", beers_and_brewery$style))] <- "stout"
 beers_and_brewery$type[which(grepl("Porter", beers_and_brewery$style))] <- "stout"
@@ -57,22 +91,52 @@ beers_and_brewery$type[which(grepl("Witbier", beers_and_brewery$style))] <- "oth
 beers_and_brewery$type[which(grepl("Rye", beers_and_brewery$style))] <- "malt"
 beers_and_brewery$type[which(grepl("Hefeweizen", beers_and_brewery$style))] <- "malt"
 beers_and_brewery$type[which(is.na(beers_and_brewery$type))] <- "other"
+
+state_index <- as.data.frame(cbind(as.character(state.abb), 
+                                   tolower(as.character(state.name)), 
+                                   as.character(state.region)))
+colnames(state_index) <- c("state", "region", "area")
+state_index$state <- as.character(state_index$state)
+state_index$region <- as.character(state_index$region)
+state_index$area <- as.character(state_index$area)
+beers_and_brewery$state <- gsub(" ", "", beers_and_brewery$state)
+beers_and_brewery <- merge(beers_and_brewery, state_index, by = "state")
+```
+
+#KNN
+```{r, echo=tfecho}
+beers_and_brewery$ibu[which(is.na(beers_and_brewery$ibu))] <- 
+  beers_and_brewery$abv[which(is.na(beers_and_brewery$ibu))]
+
+beers_and_brewery <- beers_and_brewery[which(!is.na(beers_and_brewery$abv)), ]
+
+control <- trainControl(method = "cv", number = 10)
+
+rf <- train(type ~ abv + ibu + area + ounces, data = beers_and_brewery, 
+                 trControl = control, method = "rf")
+
+table(predict(rf, beers_and_brewery))
+table(beers_and_brewery$type)
+
+type_knn <- knn3(x = beers_and_brewery[c(3, 4)], 
+                 y = as.factor(beers_and_brewery$type), 
+                 formula = type ~ abv + ibu + interaction)
 ```
 
 #ABV and IBU by Type of Beer
-```{r, echo=FALSE}
+```{r, echo=tfecho}
 type_by_abv_and_ibu <- ggplot(data = beers_and_brewery) +
   geom_point(aes(abv, ibu, color = type))
 ```
 
 #Beer Stats by Brewery
-```{r, echo=FALSE, warning=FALSE, message=FALSE}
+```{r, echo=tfecho, warning=FALSE, message=FALSE}
 avg_brewery <- aggregate(beers_and_brewery, list(Brewery = beers_and_brewery$name.y), FUN = mean, na.action = na.omit)
 avg_state <- aggregate(beers_and_brewery, list(Brewery = beers_and_brewery$state), FUN = mean, na.action = na.omit)
 ```
 
 #Maps
-```{r, echo=FALSE, message=FALSE, warning=FALSE}
+```{r, echo=tfecho, message=FALSE, warning=FALSE}
 state_index <- as.data.frame(cbind(as.character(state.abb), 
                                    tolower(as.character(state.name)), 
                                    as.character(state.region)))
