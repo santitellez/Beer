@@ -30,7 +30,9 @@ beers_and_brewery <- merge(beers, breweries, by.x = "brewery_id", by.y = "X")
 aggregate(beers, by = c(name), FUN = mean)
 ```
 
+```{python}
 
+```
 
 
 
