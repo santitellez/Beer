@@ -20,11 +20,13 @@ pacman::p_load('stringr',
                'gridExtra',
                'caret',
                'zoo',
-               'forecast')
+               'forecast',
+               'tidytext',
+               'MASS')
 tfecho <- FALSE
 ```
 
-#Loading Data
+
 ```{r, echo=tfecho}
 opts_knit$set(root.dir = normalizePath("../"))
 
@@ -71,7 +73,6 @@ state_chart <- ggplot(data = beers_and_brewery) +
   theme(plot.title = element_text(hjust = 0.5))
 
 grid.arrange(abv_hist, ibu_hist, oz_hist, nrow = 1)
-state_chart
 ```
 
 ```{r, echo=FALSE}
@@ -160,7 +161,7 @@ table(beers_and_brewery$area)
 ```
 
 Count of breweries by region:
-```{r, echo=FALSe}
+```{r, echo=FALSE}
 table(unique(beers_and_brewery[,c(10, 14)])$area)
 ```
 
@@ -217,6 +218,9 @@ mean(predict(type_rf, na.omit(bb_test)) == na.omit(bb_test)$type)
 ```
 
 #Using Names of Beers
+
+Using only the ABV, IBU, Ounces and Region of each beer, the model is able to predict the type of beer with 57.26% on the unseen test set. To try to improve this, I will perform a sentiment analysis on the names of the beer using the .
+
 ```{r, echo=tfecho}
 beers_and_brewery$name_beer <- tolower(beers_and_brewery$name_beer)
 sentiments_adj <- na.omit(unique(sentiments[, c(1, 2)]))
@@ -266,6 +270,8 @@ table(na.omit(bb_test)$type)
 
 mean(predict(type_rf, na.omit(bb_test)) == na.omit(bb_test)$type)
 ```
+
+Including the sentiment of the names of the beers improves the accuracy of the model by about 5%. 
 
 #Correspondance Analysis - Random Forest
 ```{r, echo=tfecho}
