@@ -279,6 +279,7 @@ Including the sentiment of the names of the beers improves the accuracy of the m
 
 #Correspondance Analysis - Random Forest
 ```{r, echo=tfecho}
+set.seed(12345)
 ca_sentiments <- mca(sentiment_matrix)
 ca_matrices <- cbind(as.data.frame(ca_sentiments$fs), 
                      as.data.frame(ca_sentiments$rs))
